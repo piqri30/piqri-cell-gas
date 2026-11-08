@@ -1,0 +1,78 @@
+<!doctype html><html lang="id"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>Admin - PIQRI CELL & GAS</title>
+<link rel="stylesheet" href="style.css"></head><body>
+<header class="top"><b>Admin PIQRI CELL & GAS</b></header><main id="app"></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const sb=supabase.createClient(CFG.SUPABASE_URL,CFG.SUPABASE_ANON_KEY);
+const rp=n=>'Rp'+Number(n||0).toLocaleString('id-ID');
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const ST=['Menunggu Pembayaran','Diproses','Selesai','Dibatalkan'];
+const CT=['Gas LPG','Pulsa','Paket Data','Token PLN','E-Wallet'];
+const KD=['Modal Stok LPG','Saldo PPOB','Biaya Operasional'];
+let PR=[];
+async function init(){const {data:{session}}=await sb.auth.getSession();session?shell():login()}
+function login(){$('app').innerHTML=`<div class="c" style="max-width:380px;margin:30px auto"><h2>Login admin</h2><label>Email</label><input id="em" type="email"><label>Password</label><input id="pw" type="password"><button class="btn" onclick="doLogin()">Masuk</button></div>`}
+async function doLogin(){const {error}=await sb.auth.signInWithPassword({email:$('em').value,password:$('pw').value});error?alert('Login gagal: '+error.message):shell()}
+async function out(){await sb.auth.signOut();login()}
+function shell(){
+ $('app').innerHTML=`<nav class="tabs">${[['o','Pesanan'],['p','Produk'],['f','Keuangan'],['s','Pengaturan']].map(([k,l])=>`<button class="chip" onclick="go('${k}')">${l}</button>`).join('')}<button class="chip" onclick="out()">Keluar</button></nav><div id="v"></div>`;go('o')}
+const go=k=>({o:orders,p:products,f:fin,s:settings})[k]();
+async function orders(){
+ $('v').innerHTML='Memuat...';
+ const {data,error}=await sb.from('orders').select('*,order_items(*)').order('id',{ascending:false});
+ if(error)return $('v').innerHTML=esc(error.message);
+ $('v').innerHTML=`<h3>Semua pesanan & riwayat (${data.length})</h3>`+(data.map(o=>`<details><summary><b>${o.order_no}</b> ${esc(o.customer_name)} - ${rp(o.total)} <span class="badge">${o.status}</span></summary>
+ <p>HP: ${esc(o.phone)}<br>Metode: ${esc(o.payment_method)}<br>Waktu: ${new Date(o.created_at).toLocaleString('id-ID')}</p>
+ ${o.order_items.map(i=>`<div class="row"><span>${esc(i.name)} x${i.qty}</span><span>${rp(i.price*i.qty)}</span></div>`).join('')}
+ <label>Status</label><select onchange="setSt(${o.id},this.value)">${ST.map(s=>`<option ${s==o.status?'selected':''}>${s}</option>`).join('')}</select>
+ <a class="btn alt" style="display:inline-block;text-decoration:none" href="https://wa.me/${String(o.phone).replace(/^0/,'62')}">Chat pelanggan</a></details>`).join('')||'<p>Belum ada pesanan.</p>');
+}
+async function setSt(id,s){const {error}=await sb.from('orders').update({status:s}).eq('id',id);error?alert(error.message):orders()}
+async function products(){
+ const {data}=await sb.from('products').select('*').order('category').order('name');PR=data||[];
+ $('v').innerHTML=`<div class="c"><h3 id="ft">Tambah produk</h3><input type="hidden" id="id">
+ <label>Nama</label><input id="n"><label>Kategori</label><select id="ct">${CT.map(c=>`<option>${c}</option>`).join('')}</select>
+ <div class="f2"><div><label>Harga jual</label><input id="pr" type="number"></div><div><label>Modal</label><input id="cs" type="number"></div></div>
+ <label>Stok (dipakai jika "Lacak stok" aktif)</label><input id="st" type="number" value="0">
+ <label><input id="tr" type="checkbox" style="width:auto"> Lacak stok (untuk LPG)</label><br>
+ <label><input id="ac" type="checkbox" style="width:auto" checked> Tampil di toko</label><br>
+ <button class="btn" onclick="saveP()">Simpan produk</button></div><h3>Daftar produk</h3>`+
+ PR.map(p=>`<div class="c" style="margin-bottom:8px"><b>${esc(p.name)}</b><small>${p.category} | Jual ${rp(p.price)} | Modal ${rp(p.cost)} | ${p.track_stock?'Stok '+p.stock:'tanpa stok'} | ${p.active?'aktif':'nonaktif'}</small><div><button class="btn alt" onclick="editP(${p.id})">Edit</button> <button class="btn red" onclick="delP(${p.id})">Hapus</button></div></div>`).join('');
+}
+function editP(id){const p=PR.find(x=>x.id==id);$('ft').textContent='Edit produk';$('id').value=p.id;$('n').value=p.name;$('ct').value=p.category;$('pr').value=p.price;$('cs').value=p.cost;$('st').value=p.stock;$('tr').checked=p.track_stock;$('ac').checked=p.active;scrollTo(0,0)}
+async function saveP(){
+ const r={name:$('n').value.trim(),category:$('ct').value,price:+$('pr').value,cost:+$('cs').value,stock:+$('st').value||0,track_stock:$('tr').checked,active:$('ac').checked};
+ if(!r.name)return alert('Nama wajib diisi');
+ const id=$('id').value;const {error}=id?await sb.from('products').update(r).eq('id',id):await sb.from('products').insert(r);
+ error?alert(error.message):products();
+}
+async function delP(id){if(!confirm('Hapus produk ini? Riwayat pesanan tetap tersimpan.'))return;const {error}=await sb.from('products').delete().eq('id',id);error?alert(error.message):products()}
+async function fin(){
+ const per=$('per')?$('per').value:'all';
+ const [o,c,p]=await Promise.all([sb.from('orders').select('status,total,cost_total,created_at'),sb.from('capital_entries').select('*').order('id',{ascending:false}),sb.from('products').select('*')]);
+ const m=new Date().toISOString().slice(0,7);const inP=x=>per=='all'||String(x.created_at).startsWith(m);
+ const O=(o.data||[]).filter(inP),C=(c.data||[]).filter(inP);
+ const sum=(a,f)=>a.reduce((s,x)=>s+Number(f(x)),0);
+ const done=O.filter(x=>x.status=='Selesai'),pend=O.filter(x=>['Menunggu Pembayaran','Diproses'].includes(x.status));
+ const omzet=sum(done,x=>x.total),modal=sum(done,x=>x.cost_total),biaya=sum(C.filter(x=>x.kind=='Biaya Operasional'),x=>x.amount);
+ const stokLpg=sum((p.data||[]).filter(x=>x.category=='Gas LPG'&&x.track_stock),x=>x.stock*x.cost);
+ const kard=(l,v)=>`<div class="c"><small>${l}</small><b>${v}</b></div>`;
+ $('v').innerHTML=`<select id="per" onchange="fin()"><option value="all">Semua waktu</option><option value="m" ${per=='m'?'selected':''}>Bulan ini</option></select>
+ <div class="k">${kard('Omzet (pesanan Selesai)',rp(omzet))}${kard('Modal produk terjual',rp(modal))}${kard('Biaya operasional',rp(biaya))}${kard('Keuntungan bersih',rp(omzet-modal-biaya))}${kard('Omzet belum selesai',rp(sum(pend,x=>x.total)))}${kard('Nilai stok LPG (modal)',rp(stokLpg))}
+ ${KD.slice(0,2).map(k=>kard('Total '+k,rp(sum(C.filter(x=>x.kind==k),x=>x.amount)))).join('')}</div>
+ <p><small>Omzet bukan keuntungan. Modal stok LPG & saldo PPOB dicatat terpisah sebagai modal, tidak mengurangi keuntungan.</small></p>
+ <div class="c"><h3>Catat modal / biaya</h3><select id="kd">${KD.map(k=>`<option>${k}</option>`).join('')}</select><input id="am" type="number" placeholder="Jumlah (Rp)"><input id="nt" placeholder="Catatan"><button class="btn" onclick="addC()">Simpan</button></div>
+ <h3>Riwayat pencatatan</h3>`+C.map(x=>`<div class="row"><span>${x.kind}<br><small>${new Date(x.created_at).toLocaleDateString('id-ID')} ${esc(x.note||'')}</small></span><span>${rp(x.amount)} <button class="chip" onclick="delC(${x.id})">x</button></span></div>`).join('');
+}
+async function addC(){const a=+$('am').value;if(!a)return alert('Isi jumlah');const {error}=await sb.from('capital_entries').insert({kind:$('kd').value,amount:a,note:$('nt').value});error?alert(error.message):fin()}
+async function delC(id){if(confirm('Hapus catatan?')){await sb.from('capital_entries').delete().eq('id',id);fin()}}
+async function settings(){
+ const {data}=await sb.from('settings').select('*');const s=Object.fromEntries((data||[]).map(r=>[r.key,r.value]));
+ $('v').innerHTML=`<div class="c"><h3>Info pembayaran</h3><label>No. DANA</label><input id="s1" value="${esc(s.dana_number)}"><label>Atas nama DANA</label><input id="s2" value="${esc(s.dana_name)}"><label>Instruksi transfer bank</label><textarea id="s3" rows="4">${esc(s.bank_instruction)}</textarea><button class="btn" onclick="saveS()">Simpan</button></div>`}
+async function saveS(){const {error}=await sb.from('settings').upsert([{key:'dana_number',value:$('s1').value},{key:'dana_name',value:$('s2').value},{key:'bank_instruction',value:$('s3').value}]);alert(error?error.message:'Tersimpan')}
+init();
+</script></body></html>

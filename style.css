@@ -1,0 +1,27 @@
+:root{--b:#1565d8;--bd:#0d47a1;--bl:#e8f1ff;--t:#12263f;--g:#65758b;--ln:#d6e2f3}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#f4f8fe;color:var(--t);padding-bottom:84px}
+header.top{background:var(--b);color:#fff;padding:14px 16px;position:sticky;top:0;z-index:5}
+header.top b{font-size:1.15rem;letter-spacing:.3px}header.top small{display:block;opacity:.85}
+main{max-width:960px;margin:auto;padding:12px}
+input,select,textarea{width:100%;padding:11px 12px;border:1px solid var(--ln);border-radius:10px;font:inherit;background:#fff;margin:4px 0 8px}
+label{font-size:.85rem;color:var(--g)}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 10px}
+.chip{flex:none;border:1px solid var(--ln);background:#fff;color:var(--t);padding:8px 14px;border-radius:99px;font:inherit}
+.chip.on{background:var(--b);border-color:var(--b);color:#fff}
+.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px}
+.c{background:#fff;border:1px solid var(--ln);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:4px}
+.c h3{margin:0;font-size:1rem}.c small{color:var(--g)}
+.btn{background:var(--b);color:#fff;border:0;border-radius:10px;padding:11px 14px;font:inherit;font-weight:600;cursor:pointer;margin-top:auto}
+.btn:disabled{background:#aab8cc}.btn.alt{background:var(--bl);color:var(--bd)}.btn.red{background:#d93a3a}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--bd);color:#fff;padding:14px 16px;display:flex;justify-content:space-between;font-weight:600;z-index:6}
+.sheet{position:fixed;inset:0;background:#f4f8fe;z-index:9;overflow:auto;padding:14px;max-width:560px;margin:auto}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--ln)}
+.qty button{width:32px;height:32px;border-radius:8px;border:1px solid var(--ln);background:#fff;font-size:1.1rem}
+.box{background:var(--bl);border-radius:10px;padding:10px;margin:8px 0;white-space:pre-line}
+.badge{padding:2px 9px;border-radius:99px;background:var(--bl);color:var(--bd);font-size:.8rem}
+nav.tabs{display:flex;gap:6px;overflow-x:auto;margin-bottom:10px}
+details{background:#fff;border:1px solid var(--ln);border-radius:10px;padding:10px;margin-bottom:8px}
+summary{cursor:pointer}
+.k{display:grid;grid-template-columns:1fr 1fr;gap:8px}.k .c b{font-size:1.1rem}
+.f2{display:grid;grid-template-columns:1fr 1fr;gap:0 8px}

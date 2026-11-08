@@ -1,0 +1,68 @@
+<!doctype html><html lang="id"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PIQRI CELL & GAS</title><link rel="stylesheet" href="style.css"></head><body>
+<header class="top"><b>PIQRI CELL & GAS</b><small>Gas LPG, Pulsa, Paket Data, Token PLN, E-Wallet</small></header>
+<main><input id="q" type="search" placeholder="Cari produk..."><div id="chips" class="chips"></div><div id="list" class="g"></div></main>
+<div id="cb" class="bar" hidden onclick="openCart()"></div>
+<div id="sheet" class="sheet" hidden>
+ <div id="top"><button class="chip" onclick="$('sheet').hidden=true">Tutup</button><h2>Keranjang</h2></div>
+ <div id="items"></div>
+ <h3>Data pemesan</h3>
+ <label>Nama</label><input id="nm" autocomplete="name">
+ <label>No. HP</label><input id="hp" type="tel" inputmode="tel" autocomplete="tel">
+ <label>Metode pembayaran</label>
+ <select id="mt" onchange="pay()"><option>Transfer DANA</option><option>Transfer Bank</option></select>
+ <div id="pay" class="box"></div>
+ <div class="row"><b>Total pembayaran</b><b id="tot"></b></div>
+ <button id="co" class="btn" style="width:100%;margin-top:12px" onclick="checkout()">CHECKOUT</button>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const sb=supabase.createClient(CFG.SUPABASE_URL,CFG.SUPABASE_ANON_KEY);
+const CATS=['Semua','Gas LPG','Pulsa','Paket Data','Token PLN','E-Wallet'];
+const rp=n=>'Rp'+Number(n).toLocaleString('id-ID');
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let P=[],S={},cart={},cat='Semua';
+async function load(){
+ const [a,b]=await Promise.all([sb.from('products').select('*').eq('active',true).order('category').order('name'),sb.from('settings').select('*')]);
+ if(a.error){$('list').innerHTML='<p>Gagal memuat produk. Periksa config.js.</p>';return}
+ P=a.data;S=Object.fromEntries((b.data||[]).map(r=>[r.key,r.value]));render();
+}
+function render(){
+ $('chips').innerHTML=CATS.map(c=>`<button class="chip ${c==cat?'on':''}" onclick="cat='${c}';render()">${c}</button>`).join('');
+ const q=$('q').value.toLowerCase();
+ const f=P.filter(p=>(cat=='Semua'||p.category==cat)&&p.name.toLowerCase().includes(q));
+ $('list').innerHTML=f.map(p=>{const out=p.track_stock&&p.stock<=0;
+  return `<div class="c"><small>${p.category}</small><h3>${esc(p.name)}</h3><b>${rp(p.price)}</b>${p.track_stock?`<small>Stok: ${p.stock}</small>`:''}<button class="btn" ${out?'disabled':''} onclick="add(${p.id})">${out?'Habis':'+ Keranjang'}</button></div>`}).join('')||'<p>Produk tidak ditemukan.</p>';
+ cbar();
+}
+const prod=id=>P.find(p=>p.id==id);
+const total=()=>Object.entries(cart).reduce((s,[id,n])=>s+prod(id).price*n,0);
+function add(id){const p=prod(id);cart[id]=Math.min((cart[id]||0)+1,p.track_stock?p.stock:99);cbar()}
+function chg(id,d){const p=prod(id);const n=(cart[id]||0)+d;if(n<=0)delete cart[id];else cart[id]=Math.min(n,p.track_stock?p.stock:99);cbar();items();if(!Object.keys(cart).length)$('sheet').hidden=true}
+function cbar(){const n=Object.values(cart).reduce((a,b)=>a+b,0);$('cb').hidden=!n;$('cb').innerHTML=`<span>${n} item - lihat keranjang</span><span>${rp(total())}</span>`}
+function items(){
+ $('items').innerHTML=Object.entries(cart).map(([id,n])=>{const p=prod(id);return `<div class="row"><div>${esc(p.name)}<br><small>${rp(p.price)}</small></div><div class="qty"><button onclick="chg(${id},-1)">-</button> ${n} <button onclick="chg(${id},1)">+</button></div></div>`}).join('');
+ $('tot').textContent=rp(total());
+}
+function pay(){const m=$('mt').value;$('pay').textContent=m=='Transfer DANA'?`DANA ${S.dana_number||''}\nAtas nama: ${S.dana_name||''}`:(S.bank_instruction||'')}
+function openCart(){$('top').hidden=false;items();pay();$('sheet').hidden=false}
+async function checkout(){
+ const n=$('nm').value.trim(),h=$('hp').value.trim().replace(/[\s-]/g,''),m=$('mt').value;
+ if(!n)return alert('Isi nama pemesan.');
+ if(!/^(\+?62|0)8[0-9]{7,12}$/.test(h))return alert('No. HP tidak valid. Contoh: 08123456789');
+ const its=Object.entries(cart).map(([id,qty])=>({id:+id,qty}));
+ $('co').disabled=true;$('co').textContent='Memproses...';
+ const {data,error}=await sb.rpc('create_order',{p_name:n,p_phone:h,p_method:m,p_items:its});
+ if(error){alert('Gagal: '+error.message);$('co').disabled=false;$('co').textContent='CHECKOUT';load();return}
+ const lines=its.map(i=>`${prod(i.id).name} (${i.qty}x)`).join(', '),qt=its.reduce((a,i)=>a+i.qty,0);
+ const msg=`PESANAN PIQRI CELL & GAS\n\nNomor Pesanan: ${data.order_no}\nNama: ${n}\nNo. HP: ${h}\nProduk: ${lines}\nJumlah: ${qt}\nTotal: ${rp(data.total)}\nMetode: ${m}\n\nMohon konfirmasi pesanan saya.`;
+ const url=`https://wa.me/${CFG.ADMIN_WA}?text=${encodeURIComponent(msg)}`;
+ cart={};cbar();
+ $('sheet').innerHTML=`<h2>Pesanan ${data.order_no} tersimpan</h2><div class="box">Total: ${rp(data.total)}\nMetode: ${esc(m)}\n\nSilakan lanjut ke WhatsApp dan tekan Kirim agar admin memproses pesanan.</div><a class="btn" style="display:block;text-align:center;text-decoration:none" href="${url}">Buka WhatsApp</a><p><a href="./">Kembali belanja</a></p>`;
+ location.href=url;
+}
+$('q').oninput=render;load();
+</script></body></html>
